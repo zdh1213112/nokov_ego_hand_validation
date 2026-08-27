@@ -38,7 +38,9 @@ python3 tools/synchronize_ego_imu_nokov.py \
   --ego-mcap sessions/session_head_sync_001/ego/recording.mcap \
   --nokov-csv sessions/session_head_sync_001/nokov/nokov_rigid_bodies.csv \
   --rigid-body head_rigidbody \
-  --output-dir sessions/session_head_sync_001/synchronization
+  --output-dir sessions/session_head_sync_001/synchronization \
+  --nokov-time-field device_timestamp_raw \
+  --nokov-time-scale 0.001
 ```
 
 完整现场步骤见 `docs/head_rigidbody_imu_time_sync_zh.md`。

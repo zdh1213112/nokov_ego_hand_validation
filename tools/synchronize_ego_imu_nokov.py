@@ -169,6 +169,10 @@ def quaternion_angular_speed(
     if not np.any(positive):
         raise RuntimeError("NOKOV timestamps are not increasing")
     median_dt = float(np.median(dt[positive]))
+    total_duration = float(time_s[-1] - time_s[0])
+    mean_pose_rate = (
+        float(len(time_s) - 1) / total_duration if total_duration > 0 else float("nan")
+    )
     dots = np.abs(np.sum(quaternions[:-1] * quaternions[1:], axis=1))
     dots = np.clip(dots, 0.0, 1.0)
     angle = 2.0 * np.arccos(dots)
@@ -183,7 +187,8 @@ def quaternion_angular_speed(
     if int(np.count_nonzero(keep)) < 10:
         raise RuntimeError("too few valid NOKOV angular-speed samples")
     return midpoint[keep], speed[keep], {
-        "pose_rate_hz": 1.0 / median_dt,
+        "pose_rate_hz": mean_pose_rate,
+        "median_timestamp_step_s": median_dt,
         "filtered_angular_speed_rows": int(np.count_nonzero(~keep)),
     }
 

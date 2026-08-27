@@ -163,8 +163,19 @@ python3 tools/synchronize_ego_imu_nokov.py \
   --nokov-csv sessions/session_head_sync_001/nokov/nokov_rigid_bodies.csv \
   --rigid-body head_rigidbody \
   --output-dir sessions/session_head_sync_001/synchronization \
+  --nokov-time-field device_timestamp_raw \
+  --nokov-time-scale 0.001 \
   --max-offset-s 30
 ```
+
+本项目在2026-08-27采集的四组真实数据中确认：
+
+```text
+device_timestamp_raw 为 Unix epoch 毫秒时间戳
+相邻90 Hz帧的典型增量为11 ms
+```
+
+因此这台 NOKOV/XINGYING 设备优先使用 `device_timestamp_raw × 0.001`。`receive_perf_ns` 仍保留为诊断和兼容入口，但它代表 SDK 客户端接收时刻，不是相机测量时刻。
 
 程序生成：
 
@@ -240,6 +251,8 @@ t_nokov = a * t_ego + b
 ```
 
 第一轮通过后再增加漂移估计，避免同时排查刚体、采集、MCAP解析、时间偏移和时钟漂移。
+
+四组首轮真实数据结果见 [`head_sync_dataset_results_20260827.md`](head_sync_dataset_results_20260827.md)。
 
 ## 12. 常见问题
 

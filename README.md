@@ -38,6 +38,9 @@ IMU -> Ego：[-imu_z, +imu_x, -imu_y]
 头环四点刚体与 EGO IMU 的最小时间同步闭环见
 [`docs/head_rigidbody_imu_time_sync_zh.md`](docs/head_rigidbody_imu_time_sync_zh.md)。
 
+2026-08-27四组首轮真实同步数据结果见
+[`docs/head_sync_dataset_results_20260827.md`](docs/head_sync_dataset_results_20260827.md)。
+
 GitHub 发布和 NOKOV Windows 上位机部署见
 [`docs/github_and_nokov_windows_deployment_zh.md`](docs/github_and_nokov_windows_deployment_zh.md)。
 
