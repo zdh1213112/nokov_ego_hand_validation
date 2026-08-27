@@ -19,9 +19,10 @@ fi
 
 python3 -m venv "${VENV_DIR}"
 "${VENV_DIR}/bin/python" -m pip install --upgrade pip
-"${VENV_DIR}/bin/python" -m pip install -r "${SCRIPT_DIR}/requirements-sync.txt"
+"${VENV_DIR}/bin/python" -m pip install -r "${SCRIPT_DIR}/requirements-calibration.txt"
 "${VENV_DIR}/bin/python" "${SCRIPT_DIR}/test_sync_core.py"
+"${VENV_DIR}/bin/python" "${SCRIPT_DIR}/test_spatial_calibration_core.py"
 
 echo
 echo "Linux synchronization environment is ready: ${VENV_DIR}"
-echo "Run tools/run_linux_sync.sh SESSION_NAME to process a transferred session."
+echo "Run tools/run_ego_nokov_alignment.py to process time and spatial alignment."

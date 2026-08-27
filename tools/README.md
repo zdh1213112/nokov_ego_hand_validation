@@ -45,6 +45,23 @@ python3 tools/synchronize_ego_imu_nokov.py \
 
 完整现场步骤见 `docs/head_rigidbody_imu_time_sync_zh.md`。
 
+时间同步和 VIO 空间手眼标定统一入口：
+
+```bash
+python3 tools/run_ego_nokov_alignment.py \
+  --session-dir sessions/session_head_sync_001 \
+  --rigid-body head_rigidbody \
+  --max-offset-s 30 \
+  --fine-time-correction-s 0.01
+```
+
+新 session 不应直接复制示例的 `0.01 s`，省略该参数或使用该 session 自己确认的细化量。
+统一结果写入：
+
+```text
+sessions/SESSION_NAME/calibration/ego_nokov_alignment_summary.json
+```
+
 采集右手 30 秒：
 
 ```bash
@@ -117,6 +134,15 @@ capture_nokov_hand24.py
 synchronize_ego_imu_nokov.py
     通过 EGO IMU 与 NOKOV 头环刚体角速度模长估计第一阶段时间偏移。
 
+export_ego_vio_pose.py
+    从 DAS-Ego VIO MCAP 的 /robot0/vio/eef_pose 导出 TUM 位姿文本。
+
+calibrate_ego_vio_nokov.py
+    使用同步后的 NOKOV 刚体与 Ego/VIO 位姿求解 AX=XB、T_B_E 和世界变换。
+
+run_ego_nokov_alignment.py
+    一次执行时间同步、VIO 位姿导出、空间标定并生成统一 JSON 报告。
+
 inspect_nokov_hand_export.py
     检查 TRC、C3D 或 SDK CSV 的点名、数量、帧率和缺失率。
 
@@ -136,10 +162,9 @@ check_calibrated_session.sh
     对映射、同步和外参完成后的 session 执行严格检查。
 ```
 
-当前仍待真实数据确认后实现：
+后续 Hand(24) 真值评价仍待实现：
 
 ```text
-calibrate_nokov_to_ego.py
 convert_nokov_24_to_ego21.py
 evaluate_wilor_against_nokov.py
 render_nokov_wilor_comparison.py

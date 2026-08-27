@@ -538,6 +538,60 @@ T_We_Wm =
 - NOKOV 重新标定世界坐标、修改刚体原点/轴向或重新粘贴 Marker 后，全部空间变换重新计算；
 - `--time-correction-s 0.01` 只属于 `session_head_sync_001`，不能直接套到新 session。
 
+### 4.5 时间同步与空间标定一键代码
+
+推荐直接运行统一入口。它会依次执行：
+
+```text
+原始 EGO MCAP + NOKOV rigid CSV
+  -> IMU/刚体角速度时间同步
+  -> imu_nokov_sync.json
+  -> 从 *_ego_vio.mcap 导出 pose.txt（已有时复用）
+  -> AX=XB 空间手眼标定
+  -> T_B_E、T_Wm_We、T_We_Wm
+  -> ego_nokov_alignment_summary.json
+```
+
+新 session 默认命令：
+
+```bash
+.venv-sync/bin/python tools/run_ego_nokov_alignment.py \
+  --session-dir sessions/SESSION_NAME \
+  --rigid-body head_rigidbody \
+  --max-offset-s 30
+```
+
+`session_head_sync_001` 的完整复现命令包含该 session 专属的 `+0.01 s` 细化量：
+
+```bash
+.venv-sync/bin/python tools/run_ego_nokov_alignment.py \
+  --session-dir sessions/session_head_sync_001 \
+  --rigid-body head_rigidbody \
+  --max-offset-s 30 \
+  --fine-time-correction-s 0.01
+```
+
+如果 `ego/pose.txt` 不存在，程序会自动查找唯一的 `*_ego_vio.mcap` 并导出；
+如果原始 MCAP 或 VIO MCAP 不止一个，应使用 `--ego-mcap`、`--ego-vio-mcap`
+明确指定。所有相对输入路径都相对于 `--session-dir`。
+
+最终输出：
+
+```text
+sessions/SESSION_NAME/
+├── ego/pose.txt
+├── synchronization/
+│   ├── imu_nokov_sync.json
+│   ├── imu_nokov_aligned_signals.csv
+│   └── imu_nokov_sync.png
+└── calibration/
+    ├── T_nokov_ego_vio_provisional.json
+    └── ego_nokov_alignment_summary.json
+```
+
+其中 `ego_nokov_alignment_summary.json` 同时包含最终时间映射、相关系数、
+空间矩阵和空间残差，是后续 NOKOV Hand(24) → Ego/WiLoR 评价应读取的统一入口。
+
 ## 5. 坐标系约定
 
 项目采用：
