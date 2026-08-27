@@ -8,7 +8,21 @@ set "SDK_WHEEL=%ROOT_DIR%vendor\nokov_python_sdk\nokovpy-3.0.1-py3-none-any.whl"
 
 where py >nul 2>nul
 if errorlevel 1 (
-  echo [失败] 没有找到 Python Launcher。请先安装 64 位 Python 3.10 或 3.11。
+  echo [失败] 没有找到 Python Launcher。请先安装 64 位 Python 3.11 或 3.10。
+  pause
+  exit /b 2
+)
+
+set "PY_SPEC="
+py -3.11 -c "import struct; raise SystemExit(0 if struct.calcsize('P') * 8 == 64 else 1)" >nul 2>nul
+if not errorlevel 1 set "PY_SPEC=-3.11"
+if not defined PY_SPEC (
+  py -3.10 -c "import struct; raise SystemExit(0 if struct.calcsize('P') * 8 == 64 else 1)" >nul 2>nul
+  if not errorlevel 1 set "PY_SPEC=-3.10"
+)
+if not defined PY_SPEC (
+  echo [失败] 没有找到 64 位 Python 3.11 或 3.10。
+  echo 请从 https://www.python.org/downloads/windows/ 安装，并勾选 Python Launcher。
   pause
   exit /b 2
 )
@@ -23,7 +37,8 @@ if not exist "%SDK_WHEEL%" (
 )
 
 echo 创建 Python 虚拟环境：%VENV_DIR%
-py -3 -m venv "%VENV_DIR%"
+echo 使用 Python：%PY_SPEC%
+py %PY_SPEC% -m venv "%VENV_DIR%"
 if errorlevel 1 goto :failed
 
 set "PYTHON=%VENV_DIR%\Scripts\python.exe"

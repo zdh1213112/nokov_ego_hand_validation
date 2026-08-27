@@ -18,6 +18,8 @@ def main() -> int:
     print(f"Python architecture: {bits}-bit")
     if bits != 64:
         failures.append("NOKOV deployment requires 64-bit Python")
+    if sys.version_info[:2] not in ((3, 10), (3, 11)):
+        failures.append("this project requires Python 3.10 or 3.11 on the NOKOV PC")
 
     for module_name in ("numpy", "mcap", "mcap_protobuf", "matplotlib"):
         try:

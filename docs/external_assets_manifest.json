@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "windows-capture": {
+      "description": "NOKOV Windows upper-PC rigid-body/Hand24 acquisition",
+      "required_files": ["nokov_python_wheel"],
+      "external_prerequisites": ["xingying_installed"]
+    },
+    "linux-sync": {
+      "description": "EGO MCAP and NOKOV rigid-body time synchronization",
+      "required_files": [],
+      "external_prerequisites": []
+    },
+    "linux-full": {
+      "description": "Later full EGO/WiLoR/MANO processing; not required for time sync",
+      "required_files": [
+        "mediapipe_hand_landmarker",
+        "wilor_detector",
+        "wilor_checkpoint",
+        "wilor_config",
+        "mano_left",
+        "mano_right"
+      ],
+      "external_prerequisites": []
+    }
+  },
+  "assets": {
+    "nokov_python_wheel": {
+      "path": "vendor/nokov_python_sdk/nokovpy-3.0.1-py3-none-any.whl",
+      "source": "NOKOV/XINGYING Python SDK delivery package; copy by USB or approved vendor channel",
+      "public_url": null,
+      "tested_size_bytes": 403145,
+      "tested_sha256": "214f321e2149346e5def41d4804f9b97ee0bce458d14858ef065a62a4dc779cc"
+    },
+    "xingying_installed": {
+      "path": null,
+      "source": "Install XINGYING 4.6 on the upper PC from the NOKOV delivery package",
+      "public_url": null,
+      "tested_version": "4.6.0.7923"
+    },
+    "mediapipe_hand_landmarker": {
+      "path": "ego_wilor/models/hand_landmarker.task",
+      "source": "Google MediaPipe official model storage",
+      "public_url": "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      "tested_size_bytes": 7819105,
+      "tested_sha256": "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1"
+    },
+    "wilor_detector": {
+      "path": "ego_wilor/models/wilor/detector.pt",
+      "source": "WiLoR authors' Hugging Face space",
+      "public_url": "https://huggingface.co/spaces/rolpotamias/WiLoR/resolve/main/pretrained_models/detector.pt",
+      "tested_size_bytes": 5383237,
+      "tested_sha256": "43a9ee43b67ff678969fffb21841e03ff37508679edb9b31131a874b691cc734"
+    },
+    "wilor_checkpoint": {
+      "path": "ego_wilor/models/wilor/wilor_final.ckpt",
+      "source": "WiLoR authors' Hugging Face space; review the WiLoR model license before use",
+      "public_url": "https://huggingface.co/spaces/rolpotamias/WiLoR/resolve/main/pretrained_models/wilor_final.ckpt",
+      "tested_size_bytes": 2564989533,
+      "tested_sha256": "3e97aafc7dd08d883a4cc5a027df61fdb6fda6136dbd1319405413862ada6bb2"
+    },
+    "wilor_config": {
+      "path": "ego_wilor/models/wilor/model_config.yaml",
+      "source": "WiLoR model bundle",
+      "public_url": "https://huggingface.co/spaces/rolpotamias/WiLoR/resolve/main/pretrained_models/model_config.yaml",
+      "tested_sha256": "f69cb52704df88ef29a7cfe03f35a677a92c1ce08169b729ca7f5862f05d4297"
+    },
+    "mano_left": {
+      "path": "ego_wilor/models/mano/MANO_LEFT.pkl",
+      "source": "Register and accept the MANO license, then download and install manually",
+      "public_url": "https://mano.is.tue.mpg.de/",
+      "tested_size_bytes": 3821391,
+      "tested_sha256": "c4022f7083f2ca7c78b2b3d595abbab52debd32b09d372b16923a801f0ea6a30"
+    },
+    "mano_right": {
+      "path": "ego_wilor/models/mano/MANO_RIGHT.pkl",
+      "source": "Register and accept the MANO license, then download and install manually",
+      "public_url": "https://mano.is.tue.mpg.de/",
+      "tested_size_bytes": 3821356,
+      "tested_sha256": "45d60aa3b27ef9107a7afd4e00808f307fd91111e1cfa35afd5c4a62de264767"
+    }
+  }
+}

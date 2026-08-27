@@ -4,8 +4,8 @@ setlocal
 set "SCRIPT_DIR=%~dp0"
 set "ROOT_DIR=%SCRIPT_DIR%..\"
 set "PYTHON=%ROOT_DIR%.venv\Scripts\python.exe"
-set "OUTPUT_DIR=%SCRIPT_DIR%..\sessions\session_001\nokov"
 set "SERVER=10.1.1.198"
+set "SESSION_NAME=session_hand24_001"
 set "HEAD_BODY=head_rigidbody"
 
 if not exist "%PYTHON%" (
@@ -16,6 +16,8 @@ if not exist "%PYTHON%" (
 
 set /p "SERVER=请输入 XINGYING SDK 服务地址 [10.1.1.198]: "
 if not defined SERVER set "SERVER=10.1.1.198"
+set /p "SESSION_NAME=请输入 Session 名称 [session_hand24_001]: "
+if not defined SESSION_NAME set "SESSION_NAME=session_hand24_001"
 set /p "HAND_SET=请输入 asset_descriptions.json 中准确的 Hand(24) MarkerSet 名称: "
 if not defined HAND_SET (
   echo [失败] MarkerSet 名称不能为空。请先运行 list_nokov_assets.cmd。
@@ -24,9 +26,12 @@ if not defined HAND_SET (
 )
 set /p "HEAD_BODY=请输入头部刚体名称 [head_rigidbody]: "
 if not defined HEAD_BODY set "HEAD_BODY=head_rigidbody"
+set "OUTPUT_DIR=%ROOT_DIR%sessions\%SESSION_NAME%\nokov"
+if not exist "%ROOT_DIR%sessions\%SESSION_NAME%\ego" mkdir "%ROOT_DIR%sessions\%SESSION_NAME%\ego"
+if not exist "%ROOT_DIR%sessions\%SESSION_NAME%\synchronization" mkdir "%ROOT_DIR%sessions\%SESSION_NAME%\synchronization"
 
 echo 5 秒后开始采集，持续 30 秒。现在启动 EGO 录制。
-"%PYTHON%" "%SCRIPT_DIR%capture_nokov_hand24.py" --server "%SERVER%" --output "%OUTPUT_DIR%" --hand-markerset "%HAND_SET%" --head-rigidbody "%HEAD_BODY%" --duration 30 --start-delay 5
+"%PYTHON%" "%SCRIPT_DIR%capture_nokov_hand24.py" --server "%SERVER%" --output "%OUTPUT_DIR%" --hand-markerset "%HAND_SET%" --head-rigidbody "%HEAD_BODY%" --duration 30 --start-delay 5 --queue-size 1024
 
 echo.
 echo NOKOV SDK 数据目录：%OUTPUT_DIR%

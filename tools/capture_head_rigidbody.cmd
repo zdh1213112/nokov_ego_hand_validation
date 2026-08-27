@@ -35,7 +35,9 @@ echo.
   --output "%OUTPUT_DIR%" ^
   --rigid-only ^
   --head-rigidbody "%HEAD_BODY%" ^
-  --duration 0
+  --duration 0 ^
+  --start-delay 5 ^
+  --queue-size 1024
 
 echo.
 echo 采集程序已结束。

@@ -1,5 +1,9 @@
 # GitHub 发布与 NOKOV Windows 上位机部署
 
+从全新克隆开始的可执行主流程以根目录 [`README.md`](../README.md) 为准；
+所有 `.gitignore` 外部文件、官方下载地址和 U 盘布局见
+[`required_assets_and_downloads_zh.md`](required_assets_and_downloads_zh.md)。本文保留发布策略和 Windows 部署要点。
+
 ## 1. 仓库策略
 
 建议首先创建 GitHub 私有仓库。Git 仓库只保存代码、文档、配置模板和启动脚本，不保存：
@@ -47,7 +51,7 @@ HTTPS 登录应使用 GitHub 凭据管理器或 Personal Access Token，不要�
 
 ## 3. 在 NOKOV Windows 上位机克隆
 
-安装 Git for Windows 和64位 Python 3.10或3.11，然后：
+安装 [Git for Windows](https://git-scm.com/install/windows) 和64位 Python 3.11（也支持3.10）后：
 
 ```bat
 git clone https://github.com/YOUR_ACCOUNT/nokov-ego-hand-validation.git
@@ -117,3 +121,10 @@ session_xxx/
 ```
 
 代码更新和数据传输应分开管理。
+
+Linux 收到数据后执行：
+
+```bash
+./tools/setup_linux_sync.sh
+./tools/run_linux_sync.sh session_head_sync_001 head_rigidbody
+```

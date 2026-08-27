@@ -4,7 +4,7 @@ setlocal
 set "SCRIPT_DIR=%~dp0"
 set "ROOT_DIR=%SCRIPT_DIR%..\"
 set "PYTHON=%ROOT_DIR%.venv\Scripts\python.exe"
-set "OUTPUT_DIR=%SCRIPT_DIR%..\sessions\session_001\nokov"
+set "OUTPUT_DIR=%SCRIPT_DIR%..\sessions\_discovery\nokov"
 set "SERVER=10.1.1.198"
 
 if not exist "%PYTHON%" (

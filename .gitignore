@@ -6,6 +6,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .venv/
+.venv-sync/
 venv/
 
 # Editors and operating systems
@@ -64,6 +65,9 @@ desktop.ini
 # Third-party installers and SDK packages
 /vendor/*
 !/vendor/README.md
+!/vendor/nokov_python_sdk/
+/vendor/nokov_python_sdk/*
+!/vendor/nokov_python_sdk/README.md
 
 # Large reference output
 /reference_data/*
