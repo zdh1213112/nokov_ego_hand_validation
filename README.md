@@ -57,7 +57,7 @@ XINGYING ─ 原始 *.cap ──┘                         │
 
 ```powershell
 cd D:\
-git clone https://github.com/YOUR_ACCOUNT/nokov-ego-hand-validation.git
+git clone https://github.com/zdh1213112/nokov_ego_hand_validation
 cd D:\nokov-ego-hand-validation
 ```
 
