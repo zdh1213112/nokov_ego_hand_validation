@@ -1,0 +1,2 @@
+-r requirements-sync.txt
+scipy>=1.8

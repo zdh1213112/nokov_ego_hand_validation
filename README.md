@@ -270,6 +270,30 @@ nokov_relative_s = ego_relative_s + offset_s
 
 长录制仍建议分段估计并进一步拟合 `t_nokov = a * t_ego + b`，以处理独立时钟漂移。
 
+### 4.4 暂定 VIO–NOKOV 空间手眼标定
+
+先安装空间标定依赖：
+
+```bash
+.venv-sync/bin/python -m pip install -r tools/requirements-calibration.txt
+```
+
+然后使用 `/robot0/vio/eef_pose` 导出的 TUM 格式 `pose.txt`：
+
+```bash
+.venv-sync/bin/python tools/calibrate_ego_vio_nokov.py \
+  --ego-pose sessions/SESSION_NAME/ego/pose.txt \
+  --nokov-csv sessions/SESSION_NAME/nokov/nokov_rigid_bodies.csv \
+  --sync-json sessions/SESSION_NAME/synchronization/imu_nokov_sync.json \
+  --rigid-body head_rigidbody \
+  --output sessions/SESSION_NAME/calibration/T_nokov_ego_vio_provisional.json
+```
+
+`T_A_B` 表示把 B 系坐标变换到 A 系。脚本输出 `T_B_E`、`T_Wm_We` 和
+`T_We_Wm`。`--time-correction-s` 只能使用针对该 session 进一步估计的细化值，
+不能把某一组数据的修正量直接套到其他录制。输出状态为
+`provisional_rotation_only` 时，表示旋转已具备重复性、平移尚不能作为高精度真值。
+
 ## 5. 坐标系约定
 
 项目采用：
