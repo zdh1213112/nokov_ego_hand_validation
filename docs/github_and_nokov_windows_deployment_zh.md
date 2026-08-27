@@ -104,6 +104,35 @@ tools\setup_nokov_windows.cmd
 
 完整动作要求见 [`head_rigidbody_imu_time_sync_zh.md`](head_rigidbody_imu_time_sync_zh.md)。
 
+也可以不使用交互式 CMD，直接在 PowerShell 中采集。先创建 session：
+
+```powershell
+cd D:\nokov_ego_hand_validation
+New-Item -ItemType Directory -Force `
+  sessions\session_head_sync_001\ego, `
+  sessions\session_head_sync_001\nokov, `
+  sessions\session_head_sync_001\synchronization, `
+  sessions\session_head_sync_001\calibration
+```
+
+然后使用项目虚拟环境录制：
+
+```powershell
+.\.venv\Scripts\python.exe tools\capture_nokov_hand24.py `
+  --server 10.1.1.198 `
+  --output sessions\session_head_sync_001\nokov `
+  --rigid-only `
+  --head-rigidbody head_rigidbody `
+  --duration 0 `
+  --start-delay 5 `
+  --queue-size 1024
+```
+
+已经激活 `.venv` 时，可以把第一行替换为
+`python tools\capture_nokov_hand24.py`。停止顺序为 EGO、PowerShell 中
+`Ctrl+C`、XINGYING CAP。随后把本次 EGO MCAP 复制为
+`sessions\session_head_sync_001\ego\recording.mcap`。
+
 ## 6. 数据回传规则
 
 实验 session 默认被 Git 忽略。不要通过普通 Git commit/push 上传被试和设备数据。

@@ -2,12 +2,14 @@
 
 用于在 Windows NOKOV 上位机采集头环刚体/Hand(24)，在 Linux 对简智 DAS-Ego TF 卡录制的 MCAP 做时间同步，并为后续 NOKOV 24 点与 EGO/WiLoR 21 点真值评价准备数据。
 
-当前已经用 4 组真实数据打通：
+当前已经用真实设备和数据打通：
 
 - XINGYING/NOKOV → 90 Hz 头环四 Marker 刚体 CSV；
 - DAS-Ego TF 卡录制 → MCAP IMU；
 - 通过头部转动产生共同角速度事件，估计两个独立时钟的时间偏移；
-- 4 组同步相关系数为 `0.8296–0.9983`，推荐样例达到 `0.9944`。
+- 4 组同步相关系数为 `0.8296–0.9983`，`session_head_sync_001` 达到 `0.9983`；
+- 使用 `/robot0/vio/eef_pose` 与 `head_rigidbody` 完成 `AX=XB` 空间手眼标定；
+- `session_head_sync_001` 的 NOKOV 世界系 ↔ Ego/VIO 世界系变换已经过现场物理测量验证，方向和位置符合实际。
 
 本仓库不要求 NOKOV 和 EGO 同时联网，也不假设两台设备开始录制的系统时间完全一致。
 
@@ -18,7 +20,8 @@ XINGYING + nokovpy                          Python + MCAP
         ├─ nokov/*.csv ─┐                         │
 EGO 头环 ─ TF卡 *.mcap ─┼─ U盘/受控存储 ─ session_xxx/
 XINGYING ─ 原始 *.cap ──┘                         │
-                                                  └─ 时间偏移、对齐曲线、JSON
+                                                  ├─ 时间偏移、对齐曲线、JSON
+                                                  └─ T_B_E、T_Wm_We、T_We_Wm
 ```
 
 ## 1. GitHub 中包含什么
@@ -116,40 +119,110 @@ sessions\_discovery\nokov\asset_descriptions.json
 
 必须能看到 `head_rigidbody`、刚体 ID 和 4 个 Marker，才继续正式采集。
 
-### 2.6 同时采集 NOKOV 与 EGO
+### 2.6 正式录制 NOKOV 刚体与 EGO
 
-建议使用唯一 session 名，例如：
+以下使用 `session_head_sync_001` 演示。正式实验必须换成唯一名称，避免覆盖以前的数据。
 
-```text
-session_20260827_subject01_head_sync_001
-```
-
-执行顺序：
-
-1. 在 XINGYING 中开始原始 CAP 录制；
-2. 运行 `tools\capture_head_rigidbody.cmd`；
-3. 输入 SDK 地址、session 名和 `head_rigidbody`；
-4. 脚本显示 5 秒等待时，启动 DAS-Ego 头环录制；
-5. 静止 3 秒，然后做清晰的左右转头、抬头、低头、侧倾动作；
-6. 再自由转头约 10 秒，最后静止 3 秒；
-7. 停止 EGO 录制；
-8. 在采集窗口按 `Ctrl+C` 停止 NOKOV CSV；
-9. 停止 XINGYING CAP，并把 CAP 放进该 session 的 `nokov\raw_capture\` 或记录其受控存储位置。
-
-采集脚本使用 `--queue-size 1024`，并持续到 `Ctrl+C`。输出目录为：
-
-```text
-sessions\SESSION_NAME\nokov\
-```
-
-EGO 是独立 TF 卡录制，不由这个 Python 程序控制。录制完成后把 TF 卡中的 MCAP 复制为：
+先在 PowerShell 中创建固定目录：
 
 ```powershell
-New-Item -ItemType Directory -Force sessions\SESSION_NAME\ego
-Copy-Item F:\DAS-Ego_*.mcap sessions\SESSION_NAME\ego\recording.mcap
+cd D:\nokov_ego_hand_validation
+
+New-Item -ItemType Directory -Force `
+  sessions\session_head_sync_001\ego, `
+  sessions\session_head_sync_001\nokov, `
+  sessions\session_head_sync_001\synchronization, `
+  sessions\session_head_sync_001\calibration, `
+  sessions\session_head_sync_001\nokov\raw_capture
 ```
 
-把 `F:` 和 `SESSION_NAME` 替换成实际值。若通配符匹配多个文件，应手动指定正确的一个，不要拼接不同录制。
+目录结构：
+
+```text
+D:\nokov_ego_hand_validation\sessions\session_head_sync_001\
+├── ego\
+│   └── recording.mcap
+├── nokov\
+│   └── raw_capture\
+├── synchronization\
+└── calibration\
+```
+
+在 XINGYING 中：
+
+1. 加载 `head_rigidbody`；
+2. 确认 4 个 Marker 都能看到且刚体跟踪稳定；
+3. 开启 SDK/Data Adapter 数据广播；
+4. 开始 CAP 原始录制，并保留 `.cap` 文件。
+
+如果已经运行过 `tools\setup_nokov_windows.cmd`，可以直接使用项目虚拟环境：
+
+```powershell
+.\.venv\Scripts\python.exe tools\capture_nokov_hand24.py `
+  --server 10.1.1.198 `
+  --output sessions\session_head_sync_001\nokov `
+  --rigid-only `
+  --head-rigidbody head_rigidbody `
+  --duration 0 `
+  --start-delay 5 `
+  --queue-size 1024
+```
+
+如果已经激活 `.venv`，也可以使用用户熟悉的写法：
+
+```powershell
+python tools\capture_nokov_hand24.py `
+  --server 10.1.1.198 `
+  --output sessions\session_head_sync_001\nokov `
+  --rigid-only `
+  --head-rigidbody head_rigidbody `
+  --duration 0 `
+  --start-delay 5 `
+  --queue-size 1024
+```
+
+参数含义：
+
+- `--rigid-only`：只采集头环刚体，不采集手部 24 点；
+- `--duration 0`：持续录制，按 `Ctrl+C` 停止；
+- `--start-delay 5`：等待 5 秒后正式写入数据；
+- `--queue-size 1024`：增加回调缓存，降低高负载时丢帧风险。
+
+看到等待提示后启动 EGO TF 卡录制。EGO MCAP 必须使用 DAS-Ego 官方设备端录制功能生成，本项目的 Python 采集器只负责 NOKOV。
+
+建议动作顺序：
+
+1. XINGYING 开始 CAP；
+2. 执行上面的 NOKOV 命令；
+3. 在 5 秒等待期间启动 EGO；
+4. 保持头部静止 3 秒；
+5. 快速左转一次并回正；
+6. 快速右转两次并回正；
+7. 抬头一次、低头两次，均回正；
+8. 左右侧倾各一次；
+9. 缓慢自由转头约 10 秒；
+10. 最后静止 3 秒；
+11. 停止 EGO；
+12. PowerShell 中按 `Ctrl+C` 停止 NOKOV；
+13. 停止 XINGYING CAP。
+
+从 TF 卡或 EGO 数据目录复制 MCAP：
+
+```powershell
+Copy-Item `
+  D:\你的EGO录制目录\DAS-Ego_*.mcap `
+  sessions\session_head_sync_001\ego\recording.mcap
+```
+
+如果已经明确知道文件名，也可以直接指定：
+
+```powershell
+Copy-Item `
+  D:\data\recording.mcap `
+  sessions\session_head_sync_001\ego\recording.mcap
+```
+
+若通配符匹配多个 MCAP，必须手动选择本次录制对应的文件，不能把多次录制混入同一个 session。将 XINGYING CAP 放入 `nokov\raw_capture\`，或在其中记录 CAP 的受控存储位置。
 
 ### 2.7 Windows 采集后检查
 
@@ -270,7 +343,17 @@ nokov_relative_s = ego_relative_s + offset_s
 
 长录制仍建议分段估计并进一步拟合 `t_nokov = a * t_ego + b`，以处理独立时钟漂移。
 
-### 4.4 暂定 VIO–NOKOV 空间手眼标定
+### 4.4 VIO–NOKOV 空间手眼标定（链路已验证）
+
+先使用 DAS-Ego 官方 VIO/SLAM 后处理生成带有 `/robot0/vio/eef_pose` 的
+`*_ego_vio.mcap`。如果官方输出目录已经包含 `pose.txt`，可以直接使用；否则从
+VIO MCAP 导出：
+
+```bash
+.venv-sync/bin/python tools/export_ego_vio_pose.py \
+  --mcap sessions/SESSION_NAME/ego/DAS-Ego_xxx_ego_vio.mcap \
+  --output sessions/SESSION_NAME/ego/pose.txt
+```
 
 先安装空间标定依赖：
 
@@ -289,10 +372,43 @@ nokov_relative_s = ego_relative_s + offset_s
   --output sessions/SESSION_NAME/calibration/T_nokov_ego_vio_provisional.json
 ```
 
+`session_head_sync_001` 已进一步确认时间修正为 `+0.01 s`，该 session 的完整复算命令为：
+
+```bash
+.venv-sync/bin/python tools/calibrate_ego_vio_nokov.py \
+  --ego-pose sessions/session_head_sync_001/ego/pose.txt \
+  --nokov-csv sessions/session_head_sync_001/nokov/nokov_rigid_bodies.csv \
+  --sync-json sessions/session_head_sync_001/synchronization/imu_nokov_sync.json \
+  --rigid-body head_rigidbody \
+  --time-correction-s 0.01 \
+  --output sessions/session_head_sync_001/calibration/T_nokov_ego_vio_provisional.json
+```
+
 `T_A_B` 表示把 B 系坐标变换到 A 系。脚本输出 `T_B_E`、`T_Wm_We` 和
-`T_We_Wm`。`--time-correction-s` 只能使用针对该 session 进一步估计的细化值，
-不能把某一组数据的修正量直接套到其他录制。输出状态为
-`provisional_rotation_only` 时，表示旋转已具备重复性、平移尚不能作为高精度真值。
+`T_We_Wm`。其中 `T_We_Wm` 用于把 NOKOV 世界坐标变换到 Ego/VIO 世界坐标。
+
+当前结果已经过现场物理测量验证，在当前安装与当前 session 中方向、位置符合实际。
+算法仍保留误差统计和 `provisional_rotation_only` 状态，提醒后续评价不要忽略平移残差。
+
+`session_head_sync_001` 当前验证通过的 NOKOV 世界坐标到 Ego/VIO 世界坐标变换为
+（输入输出单位均为米，NOKOV 原始 mm 必须先乘 `0.001`）：
+
+```text
+p_We = T_We_Wm @ p_Wm
+
+T_We_Wm =
+[[ 0.1746872616,  0.9824355326,  0.0656108601, -0.0693047093],
+ [-0.9844311951,  0.1755833991, -0.0081050691,  0.1237448602],
+ [-0.0194828858, -0.0631735251,  0.9978123686, -0.3396085837],
+ [ 0.0000000000,  0.0000000000,  0.0000000000,  1.0000000000]]
+```
+
+必须遵守以下复用规则：
+
+- `T_B_E` 只有在反光球刚体相对头环完全没有移动时才可复用；
+- `T_Wm_We` 和 `T_We_Wm` 与本次 VIO 世界原点绑定，每次重新启动 VIO/重新录制都要重新计算；
+- NOKOV 重新标定世界坐标、修改刚体原点/轴向或重新粘贴 Marker 后，全部空间变换重新计算；
+- `--time-correction-s 0.01` 只属于 `session_head_sync_001`，不能直接套到新 session。
 
 ## 5. 坐标系约定
 
@@ -353,8 +469,9 @@ git ls-files | grep -E '\.(mcap|cap|c3d|trc|ckpt|pt|pkl|whl|exe)$' && echo '检�
 
 ## 9. 当前边界
 
-- 目前完成的是“NOKOV 头部刚体 ↔ EGO IMU”的采集和时间同步闭环；
+- 已完成“NOKOV 头部刚体 ↔ EGO IMU/VIO”的采集、时间同步和空间变换闭环；
+- `session_head_sync_001` 的空间矩阵已由用户现场测量验证，但它仍是本次安装和本次 VIO 世界原点下的结果；
 - 24 个反光 Marker 与 WiLoR 21 个解剖关节不要求物理重合，后续应按骨段、角度、尺度归一化和可见性做评价；
 - NOKOV 为 mm，EGO/WiLoR 通常为 m；
-- 头戴设备会运动，后续空间对齐仍需逐帧头部刚体和真实 `T_head_ego_base`；
+- 新 session 仍需逐帧头部刚体、对应 VIO 位姿和该 session 重新求解的世界变换；
 - 时间同步不能替代相机内参、NOKOV↔EGO 外参和 24→21 语义映射。
