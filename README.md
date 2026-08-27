@@ -249,7 +249,135 @@ session_xxx/
 └── synchronization/
 ```
 
-只采集刚体时没有 Hand24 文件是正常的。需要采集 Hand24 时运行 `tools\capture_nokov_30s.cmd`，并输入 `asset_descriptions.json` 中准确的 MarkerSet 名称。
+只采集刚体时 `nokov_markers.csv` 中没有 Hand(24) 数据是正常的。左右手正式采集按下一节操作。
+
+### 2.8 同时录制左右手 Hand(24) 和头部刚体
+
+先在 XINGYING 中同时加载：
+
+- `head_rigidbody`；
+- 左手 Hand(24) MarkerSet；
+- 右手 Hand(24) MarkerSet。
+
+确保左右手各有 24 个已命名 Marker，头环 4 个 Marker 可见，然后开启 SDK/Data Adapter 广播。先读取实际资产名称：
+
+```powershell
+.\.venv\Scripts\python.exe tools\capture_nokov_hand24.py `
+  --server 10.1.1.198 `
+  --output sessions\_discovery\nokov `
+  --list-only
+
+Get-Content sessions\_discovery\nokov\asset_descriptions.json
+```
+
+下面假设 JSON 中的准确名称为 `Left Hand(24)` 和 `Right Hand(24)`。如果现场名称不同，必须使用 JSON 中的名称，不能猜测。
+
+创建双手采集 session：
+
+```powershell
+$SESSION_NAME = "session_bimanual_hand24_001"
+
+New-Item -ItemType Directory -Force `
+  "sessions\$SESSION_NAME\ego", `
+  "sessions\$SESSION_NAME\nokov", `
+  "sessions\$SESSION_NAME\nokov\raw_capture", `
+  "sessions\$SESSION_NAME\synchronization", `
+  "sessions\$SESSION_NAME\calibration"
+```
+
+先在 XINGYING 中开始 CAP，然后同时采集左右手 24 点和头部刚体：
+
+```powershell
+.\.venv\Scripts\python.exe tools\capture_nokov_hand24.py `
+  --server 10.1.1.198 `
+  --output "sessions\$SESSION_NAME\nokov" `
+  --hand-markerset "Left Hand(24)" `
+  --hand-markerset "Right Hand(24)" `
+  --head-rigidbody head_rigidbody `
+  --expected-hand-markers 24 `
+  --duration 0 `
+  --start-delay 5 `
+  --queue-size 1024
+```
+
+已经激活 `.venv` 时，可以把命令开头改成
+`python tools\capture_nokov_hand24.py`，其余参数保持不变。
+
+双手采集命令中不能加入 `--rigid-only`，否则手部 MarkerSet 不会写入。两个 `--hand-markerset` 可以重复使用，这里分别选择左手和右手。
+
+只录制一只手时，仅保留对应参数。例如只录右手：
+
+```powershell
+.\.venv\Scripts\python.exe tools\capture_nokov_hand24.py `
+  --server 10.1.1.198 `
+  --output sessions\session_right_hand24_001\nokov `
+  --hand-markerset "Right Hand(24)" `
+  --head-rigidbody head_rigidbody `
+  --expected-hand-markers 24 `
+  --duration 0 `
+  --start-delay 5 `
+  --queue-size 1024
+```
+
+推荐录制顺序：
+
+1. XINGYING 开始 CAP；
+2. 执行双手采集命令；
+3. 5 秒等待期间启动 EGO；
+4. 双手自然张开并静止 3 秒；
+5. 做一组明显的左右转头动作，用于 EGO–NOKOV 时间同步；
+6. 左右手分别完成张手、握拳、五指依次屈曲、拇指对掌、分指、并指和手腕旋转；
+7. 双手同时完成几组动作；
+8. 再做一组明显的头部同步动作；
+9. 双手张开并静止 3 秒；
+10. 停止 EGO，按 `Ctrl+C` 停止 NOKOV，最后停止 XINGYING CAP。
+
+头部刚体和左右手 MarkerSet 共享 NOKOV 的 `frame_no` 和 `device_timestamp_raw`，因此它们在 NOKOV 内部已经位于同一时间轴。跨设备同步仍使用 `head_rigidbody` 与 EGO IMU/VIO 完成。
+
+主要输出：
+
+```text
+sessions\session_bimanual_hand24_001\nokov\
+├── nokov_frames.csv
+├── nokov_markers.csv
+├── nokov_rigid_bodies.csv
+├── nokov_rigid_body_markers.csv
+├── asset_descriptions.json
+├── capture_metadata.json
+├── events.csv
+└── marker_names.txt
+```
+
+`nokov_markers.csv` 中：
+
+- `markerset_name` 区分左手和右手；
+- `marker_index`、`marker_name` 区分每个反光点；
+- `valid` 表示该 Marker 在当前帧是否有效；
+- `x_mm/y_mm/z_mm` 是 NOKOV 世界坐标，单位 mm；
+- 个别 Marker 暂时丢失时，后处理必须保留逐点 `valid` 掩码，不能把无效坐标当作零点。
+
+采集后检查左右手行数、点名和有效率：
+
+```powershell
+$markers = Import-Csv "sessions\$SESSION_NAME\nokov\nokov_markers.csv"
+
+$markers |
+  Group-Object markerset_name |
+  Select-Object Name, Count
+
+$markers |
+  Group-Object markerset_name, marker_name |
+  Select-Object Name, Count
+
+$markers |
+  Where-Object { $_.valid -eq "1" } |
+  Group-Object markerset_name |
+  Select-Object Name, Count
+
+Get-Content "sessions\$SESSION_NAME\nokov\capture_metadata.json"
+```
+
+重点确认 `queue_dropped_frames = 0`、`callback_errors = 0`，并检查两个 MarkerSet 都有数据。正式评价时不能把 `nokov_markers.csv` 的数组前 21 项直接当成 WiLoR 21 关节，仍需使用项目中的 24→21 语义映射和有效性规则。
 
 ## 3. Windows → Linux：用 U 盘传 session
 
