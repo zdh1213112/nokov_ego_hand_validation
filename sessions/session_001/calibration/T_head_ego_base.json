@@ -1,0 +1,14 @@
+{
+  "schema": "nokov_head_to_ego_base_extrinsic_v1",
+  "status": "PLACEHOLDER_DO_NOT_USE",
+  "transform_direction": "head_rigidbody_to_ego_base",
+  "equation": "p_ego_base_m = R_ego_base_from_head * p_head_m + t_ego_base_from_head_m",
+  "rotation_matrix": null,
+  "translation_m": null,
+  "calibration_method": "TODO_PNP_OR_HAND_EYE",
+  "source_session": "TODO",
+  "reprojection_error_px": null,
+  "validation_session": "TODO",
+  "notes": "不得用单位矩阵占位运行评价。"
+}
+

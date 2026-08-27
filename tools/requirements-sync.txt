@@ -1,0 +1,4 @@
+numpy>=1.21
+mcap>=1.4
+mcap-protobuf-support>=0.5
+matplotlib>=3.5

@@ -1,0 +1,20 @@
+name: ego-hand
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - setuptools
+  - wheel
+variables:
+  PYTHONNOUSERSITE: "1"
+
+# This file intentionally creates only the stable Conda/Python bootstrap.
+# Install the complete pinned runtime with:
+#   ./scripts/setup_python_environment.sh
+#
+# The installer keeps ordinary packages on PyPI, CUDA wheels on the PyTorch
+# index, and installs legacy chumpy explicitly with --no-build-isolation.
+# Putting all of these in Conda's `pip:` section makes one interrupted download
+# fail the entire environment creation and cannot reliably disable chumpy's
+# isolated build environment.

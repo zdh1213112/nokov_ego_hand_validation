@@ -1,0 +1,2 @@
+ego_frame_index,ego_timestamp_ns,nokov_frame_before,nokov_frame_after,nokov_timestamp_before,nokov_timestamp_after,interpolation_alpha,time_error_us,valid
+

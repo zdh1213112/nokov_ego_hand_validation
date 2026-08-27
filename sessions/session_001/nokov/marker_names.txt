@@ -1,0 +1,6 @@
+# PLACEHOLDER_DO_NOT_USE
+# 从实际 TRC/C3D 或 XINGYING 界面复制每个 marker 的准确名称。
+# 每行格式建议：hand,marker_index,marker_name,physical_location
+# 示例仅说明字段格式，不代表真实点名：
+# Right,0,ACTUAL_NAME_FROM_EXPORT,thumb_tip
+

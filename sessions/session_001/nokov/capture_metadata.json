@@ -1,0 +1,21 @@
+{
+  "schema": "nokov_hand24_capture_metadata_v1",
+  "status": "PLACEHOLDER_DO_NOT_USE",
+  "session_id": "session_001",
+  "subject_id": "TODO",
+  "handedness": "TODO_LEFT_OR_RIGHT",
+  "xingying_version": "4.6.0.7923",
+  "markerset_template": "Left/Right Hand(24)",
+  "frame_rate_hz": null,
+  "position_unit": "mm",
+  "world_up_axis": "TODO_Y_OR_Z",
+  "finger_forward_axis_at_model_creation": "TODO_PLUS_Z_OR_PLUS_Y",
+  "start_timestamp": null,
+  "end_timestamp": null,
+  "marker_name_file": "marker_names.txt",
+  "trc_file": "hand24.trc",
+  "c3d_file": "hand24.c3d",
+  "head_rigidbody_name": "head_rigidbody",
+  "notes": "TODO"
+}
+

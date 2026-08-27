@@ -1,0 +1,5 @@
+# TRC、session 和 EGO JSONL 检查只使用 Python 标准库。
+# 只有检查 C3D 时才需要：
+ezc3d>=1.5
+numpy>=1.24
+

@@ -1,0 +1,106 @@
+# Python and local environments
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Raw recordings, exports and generated media
+*.mcap
+*.cap
+*.c3d
+*.trc
+*.ly
+*.vc0
+*.vc1
+*.vc2
+*.vc3
+*.vc4
+*.vc5
+*.mp4
+*.avi
+*.mov
+*.wav
+*.bag
+
+# Model weights and proprietary/binary dependencies
+*.ckpt
+*.pth
+*.pt
+*.onnx
+*.task
+*.pkl
+*.so
+*.so.*
+*.dll
+*.dylib
+*.egg
+*.whl
+*.exe
+
+# Site-specific NOKOV calibration assets
+/assets/*
+!/assets/README.md
+
+# Third-party installers and SDK packages
+/vendor/*
+!/vendor/README.md
+
+# Large reference output
+/reference_data/*
+!/reference_data/README.md
+
+# Locally installed models and third-party source trees
+/ego_wilor/models/*
+!/ego_wilor/models/README.md
+/ego_wilor/third_party/*
+!/ego_wilor/third_party/README.md
+!/ego_wilor/third_party/manifest.json
+
+# Runtime sessions: keep only the committed empty template
+/sessions/*
+!/sessions/README.md
+!/sessions/session_001/
+!/sessions/session_001/evaluation/
+!/sessions/session_001/evaluation/README.md
+!/sessions/session_001/calibration/
+!/sessions/session_001/calibration/T_head_ego_base.json
+!/sessions/session_001/calibration/head_rigidbody_definition.json
+!/sessions/session_001/ego/
+!/sessions/session_001/ego/README.md
+!/sessions/session_001/synchronization/
+!/sessions/session_001/synchronization/sync_events.csv
+!/sessions/session_001/synchronization/frame_alignment.csv
+!/sessions/session_001/config/
+!/sessions/session_001/config/nokov24_to_ego21.yaml
+!/sessions/session_001/nokov/
+!/sessions/session_001/nokov/capture_metadata.json
+!/sessions/session_001/nokov/marker_names.txt
+!/sessions/session_001/nokov/raw_capture/
+!/sessions/session_001/nokov/raw_capture/README.md
+
+# Generated reports and outputs outside sessions
+evaluation/
+output/
+outputs/
+logs/
+*.log

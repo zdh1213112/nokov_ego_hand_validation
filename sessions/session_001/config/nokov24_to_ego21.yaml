@@ -1,0 +1,32 @@
+schema: nokov_hand24_to_mediapipe21_v1
+status: PLACEHOLDER_DO_NOT_USE
+nokov_position_unit: mm
+ego_position_unit: m
+handedness: TODO_LEFT_OR_RIGHT
+wrist_method: TODO_WRIST_MARKER_MIDPOINT_OR_FITTED
+wrist_sources: []
+joints:
+  thumb_cmc: null
+  thumb_mcp: null
+  thumb_ip: null
+  thumb_tip: null
+  index_mcp: null
+  index_pip: null
+  index_dip: null
+  index_tip: null
+  middle_mcp: null
+  middle_pip: null
+  middle_dip: null
+  middle_tip: null
+  ring_mcp: null
+  ring_pip: null
+  ring_dip: null
+  ring_tip: null
+  pinky_mcp: null
+  pinky_pip: null
+  pinky_dip: null
+  pinky_tip: null
+auxiliary_palm_markers: []
+marker_offsets_local_mm: {}
+notes: 使用实际导出点名填写；不能按TRC列顺序猜测。
+

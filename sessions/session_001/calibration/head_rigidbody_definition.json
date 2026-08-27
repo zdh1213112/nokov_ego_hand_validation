@@ -1,0 +1,13 @@
+{
+  "schema": "nokov_head_rigidbody_definition_v1",
+  "status": "PLACEHOLDER_DO_NOT_USE",
+  "rigid_body_name": "head_rigidbody",
+  "marker_names": [],
+  "marker_positions_head_mm": null,
+  "minimum_marker_count": 3,
+  "recommended_marker_count": 4,
+  "mounting_description": "TODO",
+  "created_from_capture": "TODO",
+  "notes": "至少三个marker必须不共线；重新拆装头环后需要重新标定。"
+}
+
