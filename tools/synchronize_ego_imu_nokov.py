@@ -36,6 +36,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-overlap-s", type=float, default=8.0)
     parser.add_argument("--max-angular-speed-rad-s", type=float, default=15.0)
     parser.add_argument(
+        "--max-interpolation-gap-s",
+        type=float,
+        default=0.05,
+        help=(
+            "maximum NOKOV pose bracket allowed when interpolating its 90 Hz "
+            "rigid pose onto exact EGO IMU timestamps"
+        ),
+    )
+    parser.add_argument(
         "--nokov-time-field", default="receive_perf_ns",
         choices=("receive_perf_ns", "receive_unix_ns", "device_timestamp_raw"),
     )
@@ -112,6 +121,7 @@ def read_nokov_quaternions(
     path: Path, rigid_body: str, time_field: str
 ) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
     rows: list[tuple[int, np.ndarray, int]] = []
+    recording_timestamps: list[int] = []
     seen_names: set[str] = set()
     with path.open("r", encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream)
@@ -122,7 +132,12 @@ def read_nokov_quaternions(
         for row in reader:
             name = row.get("rigid_body_name", "")
             seen_names.add(name)
-            if name != rigid_body or parse_int(row, "valid_numeric", 1) == 0:
+            if name != rigid_body:
+                continue
+            recording_stamp = parse_int(row, time_field)
+            if recording_stamp:
+                recording_timestamps.append(recording_stamp)
+            if parse_int(row, "valid_numeric", 1) == 0:
                 continue
             try:
                 stamp = parse_int(row, time_field)
@@ -134,7 +149,12 @@ def read_nokov_quaternions(
             except (TypeError, ValueError):
                 continue
             norm = float(np.linalg.norm(quat))
-            if stamp and np.isfinite(quat).all() and norm > 0.5:
+            if (
+                stamp
+                and np.isfinite(quat).all()
+                and np.max(np.abs(quat)) <= 2.0
+                and 0.5 < norm < 1.5
+            ):
                 rows.append((stamp, quat / norm, params))
     if len(rows) < 10:
         raise RuntimeError(
@@ -154,6 +174,148 @@ def read_nokov_quaternions(
     return timestamps[keep], quaternions[keep], {
         "available_rigid_body_names": sorted(seen_names),
         "tracking_valid_bit_used": bool(has_tracking_bits),
+        "recording_origin_timestamp_raw": int(min(recording_timestamps)),
+    }
+
+
+def read_nokov_poses(
+    path: Path, rigid_body: str, time_field: str
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Read valid rigid poses without trusting NOKOV's validity bit alone."""
+    rows: list[tuple[int, int, np.ndarray, np.ndarray]] = []
+    with path.open("r", encoding="utf-8-sig", newline="") as stream:
+        reader = csv.DictReader(stream)
+        required = {
+            "frame_no", time_field, "rigid_body_name", "x_mm", "y_mm", "z_mm",
+            "qx", "qy", "qz", "qw",
+        }
+        missing = required.difference(reader.fieldnames or [])
+        if missing:
+            raise RuntimeError(f"NOKOV CSV is missing pose fields: {sorted(missing)}")
+        for row in reader:
+            if row.get("rigid_body_name", "") != rigid_body:
+                continue
+            try:
+                stamp = parse_int(row, time_field)
+                frame = parse_int(row, "frame_no", -1)
+                position = np.asarray(
+                    [float(row[key]) for key in ("x_mm", "y_mm", "z_mm")],
+                    dtype=np.float64,
+                )
+                quaternion = np.asarray(
+                    [float(row[key]) for key in ("qx", "qy", "qz", "qw")],
+                    dtype=np.float64,
+                )
+            except (TypeError, ValueError):
+                continue
+            quaternion_norm = float(np.linalg.norm(quaternion))
+            if (
+                stamp
+                and np.isfinite(position).all()
+                and np.isfinite(quaternion).all()
+                and np.max(np.abs(position)) < 1_000_000.0
+                and np.max(np.abs(quaternion)) <= 2.0
+                and 0.5 < quaternion_norm < 1.5
+            ):
+                rows.append((stamp, frame, position, quaternion / quaternion_norm))
+    if len(rows) < 10:
+        raise RuntimeError(f"only {len(rows)} valid poses for rigid body {rigid_body!r}")
+    rows.sort(key=lambda item: item[0])
+    timestamps = np.asarray([item[0] for item in rows], dtype=np.int64)
+    frames = np.asarray([item[1] for item in rows], dtype=np.int64)
+    positions = np.asarray([item[2] for item in rows], dtype=np.float64)
+    quaternions = np.asarray([item[3] for item in rows], dtype=np.float64)
+    keep = np.r_[True, np.diff(timestamps) > 0]
+    return timestamps[keep], frames[keep], positions[keep], quaternions[keep]
+
+
+def slerp_quaternions(
+    first: np.ndarray, second: np.ndarray, alpha: np.ndarray
+) -> np.ndarray:
+    """Shortest-path SLERP for batches of xyzw quaternions."""
+    q0 = np.asarray(first, dtype=np.float64)
+    q1 = np.asarray(second, dtype=np.float64).copy()
+    fraction = np.asarray(alpha, dtype=np.float64).reshape(-1, 1)
+    dots = np.sum(q0 * q1, axis=1)
+    negative = dots < 0.0
+    q1[negative] *= -1.0
+    dots = np.clip(np.abs(dots), 0.0, 1.0)
+    result = np.empty_like(q0)
+    linear = dots > 0.9995
+    if np.any(linear):
+        result[linear] = (
+            (1.0 - fraction[linear]) * q0[linear]
+            + fraction[linear] * q1[linear]
+        )
+    curved = ~linear
+    if np.any(curved):
+        theta = np.arccos(dots[curved])
+        sine = np.sin(theta)
+        result[curved] = (
+            np.sin((1.0 - fraction[curved]) * theta[:, None]) / sine[:, None]
+            * q0[curved]
+            + np.sin(fraction[curved] * theta[:, None]) / sine[:, None]
+            * q1[curved]
+        )
+    result /= np.linalg.norm(result, axis=1, keepdims=True)
+    return result
+
+
+def interpolate_rigid_poses(
+    pose_time_s: np.ndarray,
+    frames: np.ndarray,
+    positions_mm: np.ndarray,
+    quaternions_xyzw: np.ndarray,
+    target_time_s: np.ndarray,
+    max_gap_s: float,
+) -> dict[str, np.ndarray]:
+    """Interpolate NOKOV poses at arbitrary mapped EGO timestamps."""
+    count = len(target_time_s)
+    right = np.searchsorted(pose_time_s, target_time_s, side="right")
+    exact_last = target_time_s == pose_time_s[-1]
+    right[exact_last] = len(pose_time_s) - 1
+    left = right - 1
+    in_range = (left >= 0) & (right < len(pose_time_s))
+    safe_left = np.clip(left, 0, len(pose_time_s) - 2)
+    safe_right = np.clip(right, 1, len(pose_time_s) - 1)
+    bracket_s = pose_time_s[safe_right] - pose_time_s[safe_left]
+    alpha = np.divide(
+        target_time_s - pose_time_s[safe_left],
+        bracket_s,
+        out=np.full(count, np.nan, dtype=np.float64),
+        where=bracket_s > 0,
+    )
+    valid = (
+        in_range
+        & (bracket_s > 0)
+        & (bracket_s <= max_gap_s)
+        & (alpha >= -1e-9)
+        & (alpha <= 1.0 + 1e-9)
+    )
+    position = np.full((count, 3), np.nan, dtype=np.float64)
+    quaternion = np.full((count, 4), np.nan, dtype=np.float64)
+    if np.any(valid):
+        weights = alpha[valid, None]
+        position[valid] = (
+            (1.0 - weights) * positions_mm[safe_left[valid]]
+            + weights * positions_mm[safe_right[valid]]
+        )
+        quaternion[valid] = slerp_quaternions(
+            quaternions_xyzw[safe_left[valid]],
+            quaternions_xyzw[safe_right[valid]],
+            alpha[valid],
+        )
+    return {
+        "valid": valid,
+        "in_range": in_range,
+        "left_frame": frames[safe_left],
+        "right_frame": frames[safe_right],
+        "left_time_s": pose_time_s[safe_left],
+        "right_time_s": pose_time_s[safe_right],
+        "bracket_s": bracket_s,
+        "alpha": alpha,
+        "position_mm": position,
+        "quaternion_xyzw": quaternion,
     }
 
 
@@ -317,6 +479,182 @@ def write_aligned_csv(
     return overlap_s, target_nokov_s, aligned_nokov, valid
 
 
+def moving_average(values: np.ndarray, window: int) -> np.ndarray:
+    if window <= 1:
+        return values.copy()
+    if window % 2 == 0:
+        window += 1
+    half = window // 2
+    padded = np.pad(values, (half, half), mode="edge")
+    return np.convolve(padded, np.ones(window) / window, mode="valid")
+
+
+def write_pose_at_ego_timestamps(
+    path: Path,
+    ego_ts: np.ndarray,
+    ego_gyro: np.ndarray,
+    nokov_pose_ts: np.ndarray,
+    nokov_frames: np.ndarray,
+    nokov_positions_mm: np.ndarray,
+    nokov_pose_quaternions: np.ndarray,
+    nokov_speed_time_s: np.ndarray,
+    nokov_speed: np.ndarray,
+    ego_origin_ns: int,
+    nokov_origin_raw: int,
+    nokov_scale: float,
+    clock_scale: float,
+    offset_s: float,
+    max_gap_s: float,
+    smooth_ms: float,
+) -> dict[str, Any]:
+    """Write one interpolated NOKOV rigid pose for each actual EGO IMU row."""
+    ego_relative_s = (ego_ts - ego_origin_ns).astype(np.float64) * 1e-9
+    target_s = clock_scale * ego_relative_s + offset_s
+    pose_time_s = (
+        nokov_pose_ts - nokov_origin_raw
+    ).astype(np.float64) * nokov_scale
+    interpolation = interpolate_rigid_poses(
+        pose_time_s,
+        nokov_frames,
+        nokov_positions_mm,
+        nokov_pose_quaternions,
+        target_s,
+        max_gap_s,
+    )
+    valid = interpolation["valid"]
+    in_speed_range = (
+        (target_s >= nokov_speed_time_s[0])
+        & (target_s <= nokov_speed_time_s[-1])
+        & valid
+    )
+    aligned_speed = np.full(len(ego_ts), np.nan, dtype=np.float64)
+    aligned_speed[in_speed_range] = np.interp(
+        target_s[in_speed_range], nokov_speed_time_s, nokov_speed
+    )
+    ego_speed = np.linalg.norm(ego_gyro, axis=1)
+    rate_hz = float(1.0 / np.median(np.diff(ego_relative_s)))
+    smoothing_window = max(1, int(round(smooth_ms * 1e-3 * rate_hz)))
+    if int(np.count_nonzero(in_speed_range)) >= 3:
+        correlation_raw = pearson(
+            ego_speed[in_speed_range], aligned_speed[in_speed_range]
+        )
+        correlation_smoothed = pearson(
+            moving_average(ego_speed[in_speed_range], smoothing_window),
+            moving_average(aligned_speed[in_speed_range], smoothing_window),
+        )
+    else:
+        correlation_raw = float("nan")
+        correlation_smoothed = float("nan")
+
+    fields = (
+        "ego_timestamp_ns", "ego_relative_s", "ego_gyro_x_rad_s",
+        "ego_gyro_y_rad_s", "ego_gyro_z_rad_s", "ego_gyro_norm_rad_s",
+        "nokov_target_timestamp_raw", "nokov_target_relative_s",
+        "nokov_left_frame", "nokov_right_frame", "interpolation_alpha",
+        "bracket_gap_ms", "x_mm", "y_mm", "z_mm", "qx", "qy", "qz", "qw",
+        "valid_interpolation",
+    )
+    with path.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer.writeheader()
+        positions = interpolation["position_mm"]
+        quaternions = interpolation["quaternion_xyzw"]
+        for index in range(len(ego_ts)):
+            pose_values = (
+                [f"{value:.9f}" for value in positions[index]]
+                + [f"{value:.12f}" for value in quaternions[index]]
+                if valid[index]
+                else [""] * 7
+            )
+            writer.writerow({
+                "ego_timestamp_ns": int(ego_ts[index]),
+                "ego_relative_s": f"{ego_relative_s[index]:.9f}",
+                "ego_gyro_x_rad_s": f"{ego_gyro[index, 0]:.9f}",
+                "ego_gyro_y_rad_s": f"{ego_gyro[index, 1]:.9f}",
+                "ego_gyro_z_rad_s": f"{ego_gyro[index, 2]:.9f}",
+                "ego_gyro_norm_rad_s": f"{ego_speed[index]:.9f}",
+                "nokov_target_timestamp_raw": (
+                    f"{nokov_origin_raw + target_s[index] / nokov_scale:.6f}"
+                ),
+                "nokov_target_relative_s": f"{target_s[index]:.9f}",
+                "nokov_left_frame": int(interpolation["left_frame"][index]),
+                "nokov_right_frame": int(interpolation["right_frame"][index]),
+                "interpolation_alpha": (
+                    f"{interpolation['alpha'][index]:.9f}"
+                    if interpolation["in_range"][index] else ""
+                ),
+                "bracket_gap_ms": (
+                    f"{interpolation['bracket_s'][index] * 1000.0:.6f}"
+                    if interpolation["in_range"][index] else ""
+                ),
+                "x_mm": pose_values[0],
+                "y_mm": pose_values[1],
+                "z_mm": pose_values[2],
+                "qx": pose_values[3],
+                "qy": pose_values[4],
+                "qz": pose_values[5],
+                "qw": pose_values[6],
+                "valid_interpolation": int(valid[index]),
+            })
+
+    overlap_count = int(np.count_nonzero(interpolation["in_range"]))
+    valid_count = int(np.count_nonzero(valid))
+    gaps_ms = interpolation["bracket_s"][valid] * 1000.0
+    quaternion_norms = np.linalg.norm(
+        interpolation["quaternion_xyzw"][valid], axis=1
+    )
+    coverage_ok = bool(overlap_count and valid_count / overlap_count >= 0.98)
+    correlation_ok = bool(
+        math.isfinite(correlation_smoothed) and correlation_smoothed >= 0.75
+    )
+    return {
+        "schema": "ego_nokov_timestamp_interpolation_v1",
+        "status": "ok" if coverage_ok and correlation_ok else "needs_review",
+        "time_mapping": {
+            "equation": "nokov_relative_s = a * ego_relative_s + b",
+            "a": clock_scale,
+            "b_s": offset_s,
+        },
+        "sampling": {
+            "ego_imu_observed_rate_hz": rate_hz,
+            "nokov_pose_observed_rate_hz": (
+                float(len(pose_time_s) - 1) / float(pose_time_s[-1] - pose_time_s[0])
+            ),
+            "method": {
+                "position": "linear interpolation",
+                "orientation": "shortest-path quaternion SLERP",
+            },
+            "note": (
+                "output rows follow exact EGO IMU timestamps; interpolation does not "
+                "increase the physical information bandwidth of the 90 Hz NOKOV data"
+            ),
+        },
+        "coverage": {
+            "ego_imu_rows": int(len(ego_ts)),
+            "rows_inside_nokov_time_range": overlap_count,
+            "valid_interpolated_rows": valid_count,
+            "rows_rejected_for_large_pose_gap": int(
+                np.count_nonzero(interpolation["in_range"] & ~valid)
+            ),
+            "overlap_valid_ratio": valid_count / overlap_count if overlap_count else 0.0,
+            "whole_ego_recording_valid_ratio": valid_count / len(ego_ts),
+        },
+        "quality": {
+            "maximum_allowed_pose_gap_ms": max_gap_s * 1000.0,
+            "pose_bracket_gap_median_ms": float(np.median(gaps_ms)),
+            "pose_bracket_gap_p95_ms": float(np.percentile(gaps_ms, 95)),
+            "pose_bracket_gap_max_ms": float(np.max(gaps_ms)),
+            "quaternion_norm_max_abs_error": float(
+                np.max(np.abs(quaternion_norms - 1.0))
+            ),
+            "angular_speed_correlation_at_exact_ego_timestamps_raw": correlation_raw,
+            "angular_speed_correlation_at_exact_ego_timestamps_smoothed": correlation_smoothed,
+            "smoothing_ms": smooth_ms,
+        },
+        "files": {"interpolated_pose_csv": path.name},
+    }
+
+
 def save_plot(
     path: Path,
     ego_grid: np.ndarray,
@@ -356,7 +694,12 @@ def save_plot(
 
 def main() -> int:
     args = parse_args()
-    if args.resample_hz <= 0 or args.max_offset_s <= 0 or args.min_overlap_s <= 0:
+    if (
+        args.resample_hz <= 0
+        or args.max_offset_s <= 0
+        or args.min_overlap_s <= 0
+        or args.max_interpolation_gap_s <= 0
+    ):
         print("[FAIL] rates and durations must be positive", file=sys.stderr)
         return 2
     ego_path = args.ego_mcap.resolve()
@@ -380,6 +723,12 @@ def main() -> int:
         nokov_ts, nokov_quat, nokov_info = read_nokov_quaternions(
             nokov_path, args.rigid_body, args.nokov_time_field
         )
+        (
+            nokov_pose_ts,
+            nokov_frames,
+            nokov_positions_mm,
+            nokov_pose_quaternions,
+        ) = read_nokov_poses(nokov_path, args.rigid_body, args.nokov_time_field)
         ego_time = (ego_ts - ego_ts[0]).astype(np.float64) * 1e-9
         ego_speed = np.linalg.norm(ego_gyro, axis=1)
         keep_ego = np.isfinite(ego_speed) & (ego_speed <= args.max_angular_speed_rad_s)
@@ -387,6 +736,8 @@ def main() -> int:
         nokov_time, nokov_speed, quaternion_info = quaternion_angular_speed(
             nokov_ts, nokov_quat, nokov_scale, args.max_angular_speed_rad_s
         )
+        nokov_origin_raw = int(nokov_info["recording_origin_timestamp_raw"])
+        nokov_time += float(int(nokov_ts[0]) - nokov_origin_raw) * nokov_scale
         ego_grid, ego_uniform = uniform_signal(
             ego_time, ego_speed, args.resample_hz, args.smooth_ms
         )
@@ -406,9 +757,33 @@ def main() -> int:
     aligned_csv = output / "imu_nokov_aligned_signals.csv"
     overlap_s, _target_nokov, aligned_nokov, valid = write_aligned_csv(
         aligned_csv, ego_grid, ego_uniform, nokov_grid, nokov_uniform,
-        offset_s, int(ego_ts[0]), int(nokov_ts[0]), nokov_scale,
+        offset_s, int(ego_ts[0]), nokov_origin_raw, nokov_scale,
     )
     aligned_corr = pearson(ego_uniform[valid], aligned_nokov[valid])
+    pose_csv = output / "nokov_pose_at_ego_imu_timestamps.csv"
+    interpolation_result = write_pose_at_ego_timestamps(
+        pose_csv,
+        ego_ts,
+        ego_gyro,
+        nokov_pose_ts,
+        nokov_frames,
+        nokov_positions_mm,
+        nokov_pose_quaternions,
+        nokov_time,
+        nokov_speed,
+        int(ego_ts[0]),
+        nokov_origin_raw,
+        nokov_scale,
+        1.0,
+        offset_s,
+        args.max_interpolation_gap_s,
+        args.smooth_ms,
+    )
+    interpolation_json = output / "ego_nokov_interpolation_validation.json"
+    interpolation_json.write_text(
+        json.dumps(interpolation_result, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     ego_activity = float(np.percentile(ego_uniform, 95) - np.percentile(ego_uniform, 20))
     nokov_activity = float(np.percentile(nokov_uniform, 95) - np.percentile(nokov_uniform, 20))
     if aligned_corr >= 0.75 and (not math.isfinite(margin) or margin >= 0.05):
@@ -426,6 +801,11 @@ def main() -> int:
         warnings.append("best offset reached the search boundary; increase --max-offset-s")
     if min(float(ego_grid[-1]), float(nokov_grid[-1])) > 120.0:
         warnings.append("long recording detected; first-stage a=1 ignores clock drift")
+    if interpolation_result["status"] != "ok":
+        warnings.append(
+            "less than 98% of overlapping EGO timestamps received a safe NOKOV pose "
+            "interpolation; inspect ego_nokov_interpolation_validation.json"
+        )
 
     result = {
         "schema": "ego_nokov_imu_sync_v1",
@@ -438,7 +818,7 @@ def main() -> int:
             "b_s": offset_s,
             "ego_origin_timestamp_ns": int(ego_ts[0]),
             "nokov_origin_field": args.nokov_time_field,
-            "nokov_origin_timestamp_raw": int(nokov_ts[0]),
+            "nokov_origin_timestamp_raw": nokov_origin_raw,
             "nokov_seconds_per_timestamp_unit": nokov_scale,
             "ego_to_nokov_raw_equation": (
                 "nokov_raw = nokov_origin_raw + "
@@ -479,6 +859,8 @@ def main() -> int:
         ),
         "files": {
             "aligned_signals": aligned_csv.name,
+            "pose_at_ego_imu_timestamps": pose_csv.name,
+            "interpolation_validation": interpolation_json.name,
             "diagnostic_plot": "imu_nokov_sync.png" if not args.no_plot else None,
         },
         "warnings": warnings,

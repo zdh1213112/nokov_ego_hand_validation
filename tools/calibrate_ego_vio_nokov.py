@@ -77,18 +77,27 @@ def load_nokov(path: Path, rigid_body: str) -> np.ndarray:
                 continue
             if row.get("valid_numeric", "1") != "1":
                 continue
-            rows.append(
-                [
-                    float(row["device_timestamp_raw"]),
-                    float(row["x_mm"]) * 0.001,
-                    float(row["y_mm"]) * 0.001,
-                    float(row["z_mm"]) * 0.001,
-                    float(row["qx"]),
-                    float(row["qy"]),
-                    float(row["qz"]),
-                    float(row["qw"]),
-                ]
-            )
+            values = [
+                float(row["device_timestamp_raw"]),
+                float(row["x_mm"]) * 0.001,
+                float(row["y_mm"]) * 0.001,
+                float(row["z_mm"]) * 0.001,
+                float(row["qx"]),
+                float(row["qy"]),
+                float(row["qz"]),
+                float(row["qw"]),
+            ]
+            position_mm = np.asarray(values[1:4]) * 1000.0
+            quaternion = np.asarray(values[4:8])
+            quaternion_norm = float(np.linalg.norm(quaternion))
+            if not np.isfinite(values).all():
+                continue
+            if np.max(np.abs(position_mm)) >= 1_000_000.0:
+                continue
+            if np.max(np.abs(quaternion)) > 2.0 or not (0.5 < quaternion_norm < 1.5):
+                continue
+            values[4:8] = (quaternion / quaternion_norm).tolist()
+            rows.append(values)
     result = np.asarray(rows, dtype=np.float64)
     if len(result) < 20:
         raise RuntimeError(f"only {len(result)} valid poses for {rigid_body!r}")
@@ -253,26 +262,35 @@ def main() -> int:
     matrix_x, pair_quality = solve_x(motions_m, motions_e)
 
     split = len(ego_poses) // 2
-    first_x, _ = solve_x(
-        *relative_pairs(
-            mocap_poses,
-            ego_poses,
-            0,
-            split,
-            args.pair_stride,
-            np.deg2rad(args.min_pair_rotation_deg),
+    half_stability_error = None
+    first_x = None
+    second_x = None
+    try:
+        first_x, _ = solve_x(
+            *relative_pairs(
+                mocap_poses,
+                ego_poses,
+                0,
+                split,
+                args.pair_stride,
+                np.deg2rad(args.min_pair_rotation_deg),
+            )
         )
-    )
-    second_x, _ = solve_x(
-        *relative_pairs(
-            mocap_poses,
-            ego_poses,
-            split,
-            len(ego_poses),
-            args.pair_stride,
-            np.deg2rad(args.min_pair_rotation_deg),
+        second_x, _ = solve_x(
+            *relative_pairs(
+                mocap_poses,
+                ego_poses,
+                split,
+                len(ego_poses),
+                args.pair_stride,
+                np.deg2rad(args.min_pair_rotation_deg),
+            )
         )
-    )
+    except RuntimeError as exc:
+        # The full-session solution is still useful when all calibration motion
+        # happened in one part of a recording.  Preserve it, but explicitly mark
+        # the independent first/second-half stability check as unavailable.
+        half_stability_error = str(exc)
 
     per_frame_y = np.asarray(
         [
@@ -292,11 +310,17 @@ def main() -> int:
     y_translation_error = np.linalg.norm(
         per_frame_y[:, :3, 3] - translation_y, axis=1
     )
-    half_rotation_difference = (
-        Rotation.from_matrix(first_x[:3, :3]).inv()
-        * Rotation.from_matrix(second_x[:3, :3])
-    ).magnitude()
-    half_translation_difference = np.linalg.norm(first_x[:3, 3] - second_x[:3, 3])
+    if first_x is not None and second_x is not None:
+        half_rotation_difference = (
+            Rotation.from_matrix(first_x[:3, :3]).inv()
+            * Rotation.from_matrix(second_x[:3, :3])
+        ).magnitude()
+        half_translation_difference = np.linalg.norm(
+            first_x[:3, 3] - second_x[:3, 3]
+        )
+    else:
+        half_rotation_difference = None
+        half_translation_difference = None
 
     report = {
         "schema": "nokov_ego_vio_handeye_v1",
@@ -338,12 +362,21 @@ def main() -> int:
             ),
             "first_vs_second_X_rotation_difference_deg": float(
                 np.degrees(half_rotation_difference)
-            ),
+            ) if half_rotation_difference is not None else None,
             "first_vs_second_X_translation_difference_mm": float(
                 half_translation_difference * 1000.0
+            ) if half_translation_difference is not None else None,
+            "first_half_T_B_E_translation_m": (
+                first_x[:3, 3].tolist() if first_x is not None else None
             ),
-            "first_half_T_B_E_translation_m": first_x[:3, 3].tolist(),
-            "second_half_T_B_E_translation_m": second_x[:3, 3].tolist(),
+            "second_half_T_B_E_translation_m": (
+                second_x[:3, 3].tolist() if second_x is not None else None
+            ),
+            "half_stability_check": (
+                {"status": "ok"}
+                if half_stability_error is None
+                else {"status": "unavailable", "reason": half_stability_error}
+            ),
         },
         "usage": {
             "ego_world_point_to_nokov_world": "p_Wm = T_Wm_We * p_We",
@@ -351,6 +384,10 @@ def main() -> int:
             "camera_note": "For camera k, use T_B_Ck = T_B_E * T_E_Ck from the vendor URDF.",
         },
         "warning": (
+            "The full-session hand-eye solution was produced, but an independent "
+            "first/second-half stability check was unavailable because calibration "
+            "motion was concentrated in one half. Treat translation as provisional."
+            if half_stability_error is not None else
             "Rotation is repeatable on this session, but translation is not: "
             "do not use the provisional translation as high-accuracy ground truth."
         ),

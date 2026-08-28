@@ -1,6 +1,11 @@
 {
   "schema_version": 1,
   "profiles": {
+    "linux-capture": {
+      "description": "NOKOV Linux XINGYING rigid-body/Hand24 acquisition",
+      "required_files": ["nokov_python_wheel"],
+      "external_prerequisites": ["xingying_linux_installed", "xingying_site_calibration"]
+    },
     "windows-capture": {
       "description": "NOKOV Windows upper-PC rigid-body/Hand24 acquisition",
       "required_files": ["nokov_python_wheel"],
@@ -37,6 +42,17 @@
       "source": "Install XINGYING 4.6 on the upper PC from the NOKOV delivery package",
       "public_url": null,
       "tested_version": "4.6.0.7923"
+    },
+    "xingying_linux_installed": {
+      "path": null,
+      "source": "Install the vendor-provided Linux XINGYING build at /usr/local/XINGYING (field installation)",
+      "public_url": null,
+      "tested_binary": "/usr/local/XINGYING/bin/XINGYING"
+    },
+    "xingying_site_calibration": {
+      "path": null,
+      "source": "Copy or create the calibration for the exact live camera set; do not reuse the archived six-camera CalWand calibration for the current eight-camera system",
+      "public_url": null
     },
     "mediapipe_hand_landmarker": {
       "path": "ego_wilor/models/hand_landmarker.task",

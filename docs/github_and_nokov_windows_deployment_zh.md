@@ -1,5 +1,8 @@
 # GitHub 发布与 NOKOV Windows 上位机部署
 
+> 兼容性说明：当前正式流程已经切换为 Linux XINGYING 同机采集与后处理。
+> 新部署请优先阅读项目根目录 `README.md`；本文仅保留旧 Windows 上位机步骤。
+
 从全新克隆开始的可执行主流程以根目录 [`README.md`](../README.md) 为准；
 所有 `.gitignore` 外部文件、官方下载地址和 U 盘布局见
 [`required_assets_and_downloads_zh.md`](required_assets_and_downloads_zh.md)。本文保留发布策略和 Windows 部署要点。

@@ -4,7 +4,30 @@
 
 机器可读清单位于 [`external_assets_manifest.json`](external_assets_manifest.json)，文件完整性可用 `tools/verify_external_assets.py` 检查。
 
-## 1. 只做 Windows NOKOV 采集时
+## 0. 当前主流程：Linux 同机采集与后处理
+
+当前不再需要 Windows NOKOV 上位机。Linux 工作站同时运行 XINGYING、
+`nokovpy` SDK 采集和后处理。
+
+| 文件/软件 | Linux 位置 | 来源 |
+|---|---|---|
+| Linux XINGYING | `/usr/local/XINGYING/bin/XINGYING` | NOKOV 厂家 Linux 安装包；没有公共直链 |
+| NOKOV Python wheel | `vendor/nokov_python_sdk/nokovpy-3.0.1-py3-none-any.whl` | 厂家 SDK 包/U 盘；没有公共直链 |
+| 当前八相机标定 | `assets/` 和 XINGYING 现场工程 | 从已标定主机复制，或对当前 8 台相机重新标定 |
+| 头环/左右手资产 | XINGYING 现场工程 | `head_rigidbody`、`Body1_Left`、`Body1_Right` |
+
+初始化：
+
+```bash
+./tools/setup_nokov_linux.sh
+conda activate nokov-ego-validation
+python3 tools/verify_external_assets.py --profile linux-capture
+```
+
+厂家 wheel 已验证包含 Linux x86-64 `libnokov_sdk.so`，文件指纹见下文。
+旧 `CalWand.vc0～vc5` 是六相机标定资产，不能用于当前八相机系统。
+
+## 1. 兼容流程：只做 Windows NOKOV 采集时
 
 ### 可公开下载
 
@@ -58,19 +81,19 @@ python tools\verify_external_assets.py --profile windows-capture
 
 把 `E:` 换成实际 U 盘盘符。
 
-## 2. 只做 Linux 时间同步时
+## 2. Linux 时间同步/空间标定
 
 不需要 NOKOV SDK、XINGYING、WiLoR、MANO、MediaPipe、CUDA 或 Orbbec SDK。需要的只有：
 
 - GitHub 仓库中的代码；
-- 从 Windows/U 盘传回的整个 `sessions/session_xxx/`；
-- Linux 的 Python 3、`venv` 和联网安装 PyPI 依赖的能力。
+- 当前 Linux 采集生成的整个 `sessions/session_xxx/`；
+- Miniconda/Anaconda 和联网安装 Python 依赖的能力。
 
-Ubuntu/Debian 缺少 `venv` 时：
+同步/空间标定环境使用根目录 `environment.yml`：
 
 ```bash
-sudo apt update
-sudo apt install -y python3 python3-venv
+./tools/setup_linux_sync.sh
+conda activate nokov-ego-validation
 ```
 
 离线 Linux 环境可在另一台同架构、同 Python 版本机器上预下载 `tools/requirements-sync.txt` 中的 wheels，再从 U 盘安装。

@@ -133,11 +133,24 @@ def load_sdk(wheel_path: Path):
         ) from exc
 
 
+SDK_MISSING_COORDINATE_LIMIT = 1_000_000.0
+
+
 def numeric_valid(values: tuple[float, ...], quaternion: bool = False) -> bool:
+    """Reject non-finite and NOKOV's 9999999 missing-value sentinel."""
     if not all(math.isfinite(value) for value in values):
         return False
     if quaternion:
-        return math.sqrt(sum(value * value for value in values[-4:])) > 0.5
+        position = values[:-4]
+        rotation = values[-4:]
+        if any(abs(value) >= SDK_MISSING_COORDINATE_LIMIT for value in position):
+            return False
+        if any(abs(value) > 2.0 for value in rotation):
+            return False
+        norm = math.sqrt(sum(value * value for value in rotation))
+        return 0.5 < norm < 1.5
+    if any(abs(value) >= SDK_MISSING_COORDINATE_LIMIT for value in values):
+        return False
     return not all(abs(value) < 1e-12 for value in values)
 
 

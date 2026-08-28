@@ -141,8 +141,16 @@ def main() -> int:
         str(extrinsic_path), required=args.stage == "calibrated",
     )
 
-    sync_path = session / "synchronization" / "sync_events.csv"
-    add("sync_events", csv_has_data(sync_path), str(sync_path))
+    capture_events_path = session / "nokov" / "events.csv"
+    sync_path = session / "synchronization" / "imu_nokov_sync.json"
+    sync_result = load_json(sync_path)
+    if args.stage == "calibrated":
+        time_data_ok = sync_result is not None and sync_result.get("status") == "ok"
+        time_data_detail = str(sync_path)
+    else:
+        time_data_ok = csv_has_data(capture_events_path)
+        time_data_detail = str(capture_events_path)
+    add("time_alignment_data", time_data_ok, time_data_detail)
     mapping_path = session / "config" / "nokov24_to_ego21.yaml"
     add(
         "marker_mapping", mapping_path.is_file() and not contains_placeholder(mapping_path),

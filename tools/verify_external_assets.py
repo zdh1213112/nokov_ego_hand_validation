@@ -25,7 +25,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--profile",
-        choices=("windows-capture", "linux-sync", "linux-full"),
+        choices=("linux-capture", "windows-capture", "linux-sync", "linux-full"),
         required=True,
     )
     parser.add_argument("--skip-hash", action="store_true")

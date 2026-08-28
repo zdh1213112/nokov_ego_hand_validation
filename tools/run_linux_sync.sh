@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
-PYTHON="${PYTHON:-${PROJECT_DIR}/.venv-sync/bin/python}"
+PYTHON_RUN="${SCRIPT_DIR}/run_nokov_python.sh"
 
 if [[ $# -lt 1 || $# -gt 2 ]]; then
   echo "usage: $0 SESSION_NAME [RIGID_BODY_NAME]" >&2
@@ -17,8 +17,8 @@ EGO_DIR="${SESSION_DIR}/ego"
 NOKOV_CSV="${SESSION_DIR}/nokov/nokov_rigid_bodies.csv"
 OUTPUT_DIR="${SESSION_DIR}/synchronization"
 
-[[ -x "${PYTHON}" ]] || {
-  echo "error: run tools/setup_linux_sync.sh first, or set PYTHON=/path/to/python" >&2
+[[ -x "${PYTHON_RUN}" ]] || {
+  echo "error: missing ${PYTHON_RUN}" >&2
   exit 2
 }
 [[ -d "${EGO_DIR}" ]] || { echo "error: missing ${EGO_DIR}" >&2; exit 2; }
@@ -35,7 +35,7 @@ else
   EGO_MCAP="${MCAP_FILES[0]}"
 fi
 
-"${PYTHON}" "${SCRIPT_DIR}/synchronize_ego_imu_nokov.py" \
+"${PYTHON_RUN}" "${SCRIPT_DIR}/synchronize_ego_imu_nokov.py" \
   --ego-mcap "${EGO_MCAP}" \
   --nokov-csv "${NOKOV_CSV}" \
   --rigid-body "${RIGID_BODY}" \

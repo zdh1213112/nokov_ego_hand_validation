@@ -1,0 +1,14 @@
+name: nokov-ego-validation
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - setuptools
+  - wheel
+variables:
+  PYTHONNOUSERSITE: "1"
+
+# The vendor NOKOV wheel is intentionally not listed here because it is not
+# distributed through Git or a public package index. setup_nokov_linux.sh
+# installs that local wheel plus tools/requirements-calibration.txt.

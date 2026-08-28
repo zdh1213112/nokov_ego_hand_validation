@@ -183,8 +183,46 @@ device_timestamp_raw 为 Unix epoch 毫秒时间戳
 synchronization/
 ├── imu_nokov_sync.json
 ├── imu_nokov_aligned_signals.csv
+├── nokov_pose_at_ego_imu_timestamps.csv
+├── ego_nokov_interpolation_validation.json
 └── imu_nokov_sync.png
 ```
+
+### 8.1 90 Hz NOKOV 与 200 Hz EGO 如何对应
+
+两套设备不需要具有相同采样率。程序不会按 CSV 行号配对，而是对每条 EGO IMU 原始时间戳执行：
+
+```text
+EGO时间戳 -> 使用 a、b 映射到 NOKOV 时间轴
+            -> 找到前后两帧 NOKOV 刚体数据
+            -> 位置线性插值、四元数 SLERP
+```
+
+结果写入 `nokov_pose_at_ego_imu_timestamps.csv`。`valid_interpolation=1` 才能使用。默认 `--max-interpolation-gap-s 0.05`，即 NOKOV 前后样本相隔超过50 ms时拒绝插值，以免跨越较长的刚体丢失区间。
+
+验证报告 `ego_nokov_interpolation_validation.json` 给出：
+
+- EGO 和 NOKOV 实测频率；
+- 共同录制区间内的有效插值比例；
+- NOKOV 插值括号间隔的中位数、P95和最大值；
+- 在 EGO 精确时间戳上重新比较的角速度相关系数；
+- 因较大数据空洞被拒绝的行数。
+
+如果要改变允许的最大插值间隔，例如限制为30 ms：
+
+```bash
+python3 tools/synchronize_ego_imu_nokov.py \
+  --ego-mcap sessions/SESSION_NAME/ego/recording.mcap \
+  --nokov-csv sessions/SESSION_NAME/nokov/nokov_rigid_bodies.csv \
+  --rigid-body head_rigidbody \
+  --output-dir sessions/SESSION_NAME/synchronization \
+  --nokov-time-field device_timestamp_raw \
+  --nokov-time-scale 0.001 \
+  --max-offset-s 30 \
+  --max-interpolation-gap-s 0.03
+```
+
+插值只是求 NOKOV 在目标时刻的连续位姿，不会把90 Hz动捕实际变成200 Hz传感器。
 
 ## 9. 如何读取结果
 

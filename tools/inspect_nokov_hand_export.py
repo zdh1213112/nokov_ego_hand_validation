@@ -280,7 +280,13 @@ def inspect_sdk_csv(
             item["observed"].add(frame_no)
             xyz = [finite_float(row.get(axis, "")) for axis in ("x_mm", "y_mm", "z_mm")]
             valid_flag = str(row.get("valid", "")).strip().lower() in ("1", "true", "yes")
-            valid = valid_flag and all(value is not None for value in xyz)
+            valid = (
+                valid_flag
+                and all(value is not None for value in xyz)
+                # NOKOV SDK uses 9999999.0 for an untracked point while some
+                # releases still report valid=1.
+                and all(abs(float(value)) < 1_000_000.0 for value in xyz if value is not None)
+            )
             if valid and zero_is_missing:
                 valid = not all(abs(float(value)) < 1e-12 for value in xyz if value is not None)
             if not valid:
